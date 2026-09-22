@@ -1,62 +1,140 @@
- "use client";
+"use client";
 import { useMemo, useState } from "react";
 
-const tools = [
-  ["EMI Calculator","Loan monthly payment","₹","emi"],
-  ["Salary Calculator","Estimate in-hand salary","₹","salary"],
-  ["GST Calculator","Add or remove GST","%","gst"],
-  ["Profit Margin","Profit & margin","%","profit"],
-  ["ROI Calculator","Investment return","%","roi"],
-  ["SIP Calculator","Monthly SIP value","₹","sip"],
-  ["Compound Interest","Growth over time","₹","compound"],
-  ["Discount Calculator","Final sale price","%","discount"],
-  ["Markup Calculator","Selling price & markup","%","markup"],
-  ["Break-even Calculator","Units to recover cost","₹","break"],
+type Key = string;
+
+type Tool = { id: string; name: string; desc: string; icon: string; tag: string };
+
+const tools: Tool[] = [
+  { id: "emi", name: "EMI Calculator", desc: "Plan your monthly loan payment", icon: "₹", tag: "Loans" },
+  { id: "salary", name: "Salary Calculator", desc: "Estimate monthly in-hand salary", icon: "↗", tag: "Salary" },
+  { id: "gst", name: "GST Calculator", desc: "Add GST or find GST amount", icon: "%", tag: "Tax" },
+  { id: "profit", name: "Profit Margin", desc: "Know profit per sale", icon: "⌁", tag: "Business" },
+  { id: "roi", name: "ROI Calculator", desc: "Measure investment return", icon: "◈", tag: "Investing" },
+  { id: "sip", name: "SIP Calculator", desc: "Estimate your SIP corpus", icon: "＋", tag: "Investing" },
+  { id: "compound", name: "Compound Interest", desc: "See money grow over time", icon: "∞", tag: "Investing" },
+  { id: "discount", name: "Discount Calculator", desc: "Find your final sale price", icon: "%", tag: "Shopping" },
+  { id: "markup", name: "Markup Calculator", desc: "Set selling price from cost", icon: "↑", tag: "Business" },
+  { id: "break", name: "Break-even Calculator", desc: "Find units needed to recover costs", icon: "≈", tag: "Business" },
 ];
 
-const fmt=(n:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(isFinite(n)?n:0);
+const initial: Record<Key, string> = {
+  amount: "", rate: "", years: "", gst: "", cost: "", selling: "", monthly: "", returnRate: "", sipYears: "",
+  fixed: "", price: "", variable: "", discount: "", markup: "",
+};
 
-function Field({label,value,setValue,step="1"}:{label:string,value:number,setValue:(n:number)=>void,step?:string}){
- return <label className="field"><span>{label}</span><input type="number" step={step} value={value} onChange={e=>setValue(Number(e.target.value))}/></label>
+const num = (v: string) => Number(v.replace(/,/g, ""));
+const valid = (...values: number[]) => values.every((v) => Number.isFinite(v) && v > 0);
+const money = (n: number | null) => n !== null && Number.isFinite(n) ? new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n) : "—";
+const pct = (n: number | null) => n !== null && Number.isFinite(n) ? `${n.toFixed(2)}%` : "—";
+const whole = (n: number | null) => n !== null && Number.isFinite(n) ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n) : "—";
+
+function Field({ label, value, placeholder, onChange, step = "1" }: { label: string; value: string; placeholder: string; onChange: (v: string) => void; step?: string }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <div className="input-wrap">
+        <input inputMode="decimal" type="number" step={step} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      </div>
+    </label>
+  );
 }
-function Result({label,value}:{label:string,value:string}){return <div className="result"><span>{label}</span><strong>{value}</strong></div>}
 
-export default function Home(){
- const [active,setActive]=useState("emi");
- const [amount,setAmount]=useState(1000000),[rate,setRate]=useState(8.5),[years,setYears]=useState(20);
- const [gst,setGst]=useState(18),[cost,setCost]=useState(100),[selling,setSelling]=useState(150);
- const [monthly,setMonthly]=useState(5000),[returnRate,setReturnRate]=useState(12),[sipYears,setSipYears]=useState(10);
- const [fixed,setFixed]=useState(100000),[price,setPrice]=useState(500),[variable,setVariable]=useState(250);
- const [discount,setDiscount]=useState(20),[markup,setMarkup]=useState(30);
+function Result({ label, value, primary = false }: { label: string; value: string; primary?: boolean }) {
+  return <div className={`result ${primary ? "primary" : ""}`}><span>{label}</span><strong>{value}</strong></div>;
+}
 
- const emi=useMemo(()=>{const r=rate/1200,n=years*12;return r?amount*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):amount/n},[amount,rate,years]);
- const sip=useMemo(()=>{const r=returnRate/1200,n=sipYears*12;return monthly*((Math.pow(1+r,n)-1)/r)*(1+r)},[monthly,returnRate,sipYears]);
- const ci=useMemo(()=>amount*Math.pow(1+rate/100,years),[amount,rate,years]);
+export default function Home() {
+  const [active, setActive] = useState("emi");
+  const [values, setValues] = useState<Record<Key, string>>(initial);
+  const set = (key: Key, value: string) => setValues((p) => ({ ...p, [key]: value }));
+  const clear = () => setValues({ ...initial });
 
- function calc(){
-  switch(active){
-   case"emi":return <><Field label="Loan amount (₹)" value={amount} setValue={setAmount}/><Field label="Interest rate (%)" value={rate} setValue={setRate} step="0.1"/><Field label="Tenure (years)" value={years} setValue={setYears}/><Result label="Monthly EMI" value={fmt(emi)}/><Result label="Total payment" value={fmt(emi*years*12)}/><Result label="Total interest" value={fmt(emi*years*12-amount)}/></>;
-   case"salary":return <><Field label="Annual CTC (₹)" value={amount} setValue={setAmount}/><Field label="Estimated deductions (%)" value={rate} setValue={setRate} step="0.1"/><Result label="Estimated monthly in-hand" value={fmt(amount*(1-rate/100)/12)}/><p className="note">Estimate only. Actual in-hand depends on PF, tax regime, bonus and salary structure.</p></>;
-   case"gst":return <><Field label="Base amount (₹)" value={amount} setValue={setAmount}/><Field label="GST rate (%)" value={gst} setValue={setGst}/><Result label="GST amount" value={fmt(amount*gst/100)}/><Result label="Including GST" value={fmt(amount*(1+gst/100))}/></>;
-   case"profit":return <><Field label="Cost / purchase (₹)" value={cost} setValue={setCost}/><Field label="Selling price (₹)" value={selling} setValue={setSelling}/><Result label="Profit / unit" value={fmt(selling-cost)}/><Result label="Margin" value={`${selling?((selling-cost)/selling*100).toFixed(2):0}%`}/></>;
-   case"roi":return <><Field label="Investment (₹)" value={cost} setValue={setCost}/><Field label="Current value (₹)" value={selling} setValue={setSelling}/><Result label="Profit / loss" value={fmt(selling-cost)}/><Result label="ROI" value={`${cost?((selling-cost)/cost*100).toFixed(2):0}%`}/></>;
-   case"sip":return <><Field label="Monthly SIP (₹)" value={monthly} setValue={setMonthly}/><Field label="Expected return (%)" value={returnRate} setValue={setReturnRate} step="0.1"/><Field label="Years" value={sipYears} setValue={setSipYears}/><Result label="Estimated value" value={fmt(sip)}/><Result label="Invested amount" value={fmt(monthly*sipYears*12)}/></>;
-   case"compound":return <><Field label="Principal (₹)" value={amount} setValue={setAmount}/><Field label="Annual rate (%)" value={rate} setValue={setRate} step="0.1"/><Field label="Years" value={years} setValue={setYears}/><Result label="Future value" value={fmt(ci)}/><Result label="Interest earned" value={fmt(ci-amount)}/></>;
-   case"discount":return <><Field label="Original price (₹)" value={amount} setValue={setAmount}/><Field label="Discount (%)" value={discount} setValue={setDiscount}/><Result label="Discount amount" value={fmt(amount*discount/100)}/><Result label="Final price" value={fmt(amount*(1-discount/100))}/></>;
-   case"markup":return <><Field label="Cost price (₹)" value={cost} setValue={setCost}/><Field label="Markup (%)" value={markup} setValue={setMarkup}/><Result label="Markup amount" value={fmt(cost*markup/100)}/><Result label="Selling price" value={fmt(cost*(1+markup/100))}/></>;
-   case"break":return <><Field label="Fixed costs (₹)" value={fixed} setValue={setFixed}/><Field label="Selling price / unit (₹)" value={price} setValue={setPrice}/><Field label="Variable cost / unit (₹)" value={variable} setValue={setVariable}/><Result label="Break-even units" value={fmt((fixed/(price-variable))||0)}/><Result label="Break-even sales" value={fmt((fixed/(price-variable))*price)}/></>;
-  }
- }
+  const calc = useMemo(() => {
+    const a = num(values.amount), r = num(values.rate), y = num(values.years), g = num(values.gst);
+    const c = num(values.cost), s = num(values.selling), m = num(values.monthly), rr = num(values.returnRate), sy = num(values.sipYears);
+    const f = num(values.fixed), p = num(values.price), v = num(values.variable), d = num(values.discount), mk = num(values.markup);
 
- return <main>
-  <nav className="nav"><div className="brand">◈ ProfitCalc <b>India</b></div><div className="navlinks"><a href="#calculators">Calculators</a><a href="#faq">FAQ</a><a href="#about">About</a></div></nav>
-  <section className="hero"><span className="badge">🇮🇳 FREE • MADE FOR INDIA</span><h1>Calculate before<br/><em>you invest.</em></h1><p>Fast, simple calculators for loans, salary, investments and small business decisions.</p><a className="cta" href="#calculators">Start calculating ↓</a></section>
-  <section id="calculators" className="section"><div className="section-head"><div><span className="eyebrow">TOOLS</span><h2>Popular calculators</h2></div><span className="muted">Free • No signup</span></div>
-   <div className="cards">{tools.map(t=><button key={t[3]} onClick={()=>setActive(t[3])} className={`tool ${active===t[3]?"selected":""}`}><span className="tool-icon">{t[2]}</span><strong>{t[0]}</strong><small>{t[1]}</small></button>)}</div>
-   <div className="calculator"><span className="eyebrow">CALCULATOR</span><h2>{tools.find(t=>t[3]===active)?.[0]}</h2><div className="calc-grid">{calc()}</div></div>
-  </section>
-  <section className="info" id="about"><div><span className="eyebrow">COMING NEXT</span><h2>More India-focused tools.</h2><p className="muted">Home loan, property ROI, car rental profit, petrol pump, inflation and business calculators.</p></div><div className="chips">{["Home Loan","Property ROI","Car Rental","Petrol Pump","Inflation","Business ROI"].map(x=><span key={x}>{x}</span>)}</div></section>
-  <section id="faq" className="faq"><span className="eyebrow">FAQ</span><h2>Simple answers.</h2><details><summary>Are these calculators free?</summary><p>Yes. The calculators are designed for free public use.</p></details><details><summary>Are the results financial advice?</summary><p>No. Results are estimates for educational and planning purposes.</p></details><details><summary>Can I use this on mobile?</summary><p>Yes. The design is responsive and optimized for mobile screens.</p></details></section>
-  <footer><div>© 2026 ProfitCalc India</div><div><a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="#">Contact</a></div></footer>
- </main>
+    switch (active) {
+      case "emi": {
+        if (!valid(a, r, y)) return { fields: [["Loan amount (₹)", "amount", "1000000"], ["Interest rate (%)", "rate", "8.5"], ["Tenure (years)", "years", "20"]], results: [["Monthly EMI", money(null), true], ["Total payment", money(null), false], ["Total interest", money(null), false]] };
+        const mr = r / 1200, n = y * 12, emi = mr ? a * mr * Math.pow(1 + mr, n) / (Math.pow(1 + mr, n) - 1) : a / n;
+        return { fields: [["Loan amount (₹)", "amount", "1000000"], ["Interest rate (%)", "rate", "8.5"], ["Tenure (years)", "years", "20"]], results: [["Monthly EMI", money(emi), true], ["Total payment", money(emi * n), false], ["Total interest", money(emi * n - a), false]] };
+      }
+      case "salary": {
+        const ok = valid(a, r); return { fields: [["Annual CTC (₹)", "amount", "600000"], ["Estimated deductions (%)", "rate", "15"]], results: [["Monthly in-hand", ok ? money(a * (1 - r / 100) / 12) : "—", true], ["Annual estimated in-hand", ok ? money(a * (1 - r / 100)) : "—", false]] };
+      }
+      case "gst": {
+        const ok = valid(a, g); return { fields: [["Base amount (₹)", "amount", "10000"], ["GST rate (%)", "gst", "18"]], results: [["GST amount", ok ? money(a * g / 100) : "—", true], ["Including GST", ok ? money(a * (1 + g / 100)) : "—", false]] };
+      }
+      case "profit": {
+        const ok = valid(c, s); const profit = s - c; return { fields: [["Cost / purchase (₹)", "cost", "100"], ["Selling price (₹)", "selling", "150"]], results: [["Profit / unit", ok ? money(profit) : "—", true], ["Profit margin", ok ? pct((profit / s) * 100) : "—", false]] };
+      }
+      case "roi": {
+        const ok = valid(c, s); const profit = s - c; return { fields: [["Investment (₹)", "cost", "100000"], ["Current value (₹)", "selling", "125000"]], results: [["Profit / loss", ok ? money(profit) : "—", true], ["ROI", ok ? pct((profit / c) * 100) : "—", false]] };
+      }
+      case "sip": {
+        const ok = valid(m, rr, sy); const rate = rr / 1200, n = sy * 12; const future = ok ? m * ((Math.pow(1 + rate, n) - 1) / rate) * (1 + rate) : null; return { fields: [["Monthly SIP (₹)", "monthly", "5000"], ["Expected return (%)", "returnRate", "12"], ["Years", "sipYears", "10"]], results: [["Estimated value", money(future), true], ["Invested amount", ok ? money(m * n) : "—", false], ["Estimated gains", future !== null ? money(future - m * n) : "—", false]] };
+      }
+      case "compound": {
+        const ok = valid(a, r, y); const future = ok ? a * Math.pow(1 + r / 100, y) : null; return { fields: [["Principal (₹)", "amount", "100000"], ["Annual rate (%)", "rate", "10"], ["Years", "years", "10"]], results: [["Future value", money(future), true], ["Interest earned", future !== null ? money(future - a) : "—", false]] };
+      }
+      case "discount": {
+        const ok = valid(a, d); return { fields: [["Original price (₹)", "amount", "10000"], ["Discount (%)", "discount", "20"]], results: [["Discount amount", ok ? money(a * d / 100) : "—", true], ["Final price", ok ? money(a * (1 - d / 100)) : "—", false]] };
+      }
+      case "markup": {
+        const ok = valid(c, mk); return { fields: [["Cost price (₹)", "cost", "100"], ["Markup (%)", "markup", "30"]], results: [["Markup amount", ok ? money(c * mk / 100) : "—", true], ["Selling price", ok ? money(c * (1 + mk / 100)) : "—", false]] };
+      }
+      default: {
+        const ok = valid(f, p, v) && p > v; const units = ok ? f / (p - v) : null; return { fields: [["Fixed costs (₹)", "fixed", "100000"], ["Selling price / unit (₹)", "price", "500"], ["Variable cost / unit (₹)", "variable", "250"]], results: [["Break-even units", units !== null ? whole(units) : "—", true], ["Break-even sales", units !== null ? money(units * p) : "—", false]] };
+      }
+    }
+  }, [active, values]);
+
+  const activeTool = tools.find((t) => t.id === active)!;
+
+  return (
+    <main>
+      <nav className="nav">
+        <a className="brand" href="#top"><span className="logo">₹</span><span>ProfitCalc <b>India</b></span></a>
+        <div className="navlinks"><a href="#calculators">Calculators</a><a href="#why">Why us</a><a href="#faq">FAQ</a></div>
+        <a className="nav-cta" href="#calculators">Start free</a>
+      </nav>
+
+      <section id="top" className="hero">
+        <div className="hero-copy">
+          <span className="badge">✦ 100% FREE · MADE FOR INDIA</span>
+          <h1>Make numbers<br /><em>make sense.</em></h1>
+          <p>Simple, fast calculators for loans, salary, GST, investments and everyday business decisions.</p>
+          <div className="hero-actions"><a className="cta" href="#calculators">Explore calculators <span>↓</span></a><span className="trust">No signup · No app · Mobile friendly</span></div>
+        </div>
+        <div className="hero-card">
+          <div className="mini-top"><span>POPULAR TODAY</span><span className="live-dot">● LIVE</span></div>
+          <div className="mini-title">EMI Calculator</div>
+          <div className="mini-number">₹ 8,678<span>/ month</span></div>
+          <div className="mini-bars"><i /><i /><i /><i /><i /></div>
+          <div className="mini-bottom"><span>Loan ₹10L</span><span>8.5% · 20 years</span></div>
+        </div>
+      </section>
+
+      <section id="calculators" className="section">
+        <div className="section-head"><div><span className="eyebrow">TOOLS</span><h2>Pick a calculator</h2><p>Enter your numbers below. All fields start blank.</p></div><span className="free-pill">● FREE · NO SIGNUP</span></div>
+        <div className="cards">{tools.map((t) => <button key={t.id} onClick={() => setActive(t.id)} className={`tool ${active === t.id ? "selected" : ""}`}><span className="tool-icon">{t.icon}</span><span className="tool-tag">{t.tag}</span><strong>{t.name}</strong><small>{t.desc}</small></button>)}</div>
+
+        <div className="calculator">
+          <div className="calc-header"><div><span className="eyebrow">{activeTool.tag.toUpperCase()}</span><h2>{activeTool.name}</h2><p>{activeTool.desc}</p></div><button className="clear" onClick={clear}>Clear all ↺</button></div>
+          <div className="calc-body">
+            <div className="inputs">{calc.fields.map(([label, key, placeholder]) => <Field key={key} label={label} value={values[key]} placeholder={placeholder} onChange={(v) => set(key, v)} />)}</div>
+            <div className="results"><div className="result-head"><span>YOUR ESTIMATE</span><span>Updates instantly</span></div>{calc.results.map(([label, value, primary]) => <Result key={label} label={label as string} value={value as string} primary={Boolean(primary)} />)}</div>
+          </div>
+          <p className="calc-note">Tip: Delete any value completely and the field stays blank — no unwanted zero.</p>
+        </div>
+      </section>
+
+      <section id="why" className="why"><div className="why-head"><span className="eyebrow">BUILT FOR EVERYDAY MONEY</span><h2>Clean numbers. Clear decisions.</h2></div><div className="why-grid"><div><b>01</b><h3>India-ready</h3><p>₹, Indian number formatting and practical calculator inputs.</p></div><div><b>02</b><h3>Super simple</h3><p>No complicated forms. Type your numbers and see the estimate.</p></div><div><b>03</b><h3>Mobile first</h3><p>Designed to work comfortably on your phone, wherever you are.</p></div></div></section>
+
+      <section id="faq" className="faq"><span className="eyebrow">FAQ</span><h2>Quick answers.</h2><details><summary>Are these calculators free?</summary><p>Yes. ProfitCalc India is designed for free public use.</p></details><details><summary>Are the results financial advice?</summary><p>No. Results are estimates for planning and educational purposes.</p></details><details><summary>Can I use it on mobile?</summary><p>Yes. The interface is responsive and optimized for mobile screens.</p></details></section>
+      <footer><div><span className="logo small">₹</span> © 2026 ProfitCalc India</div><div><a href="#">Privacy</a><span> · </span><a href="#">Terms</a><span> · </span><a href="#">Contact</a></div></footer>
+    </main>
+  );
 }
